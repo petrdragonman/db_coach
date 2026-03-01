@@ -1,15 +1,18 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   TouchSensor,
+  closestCorners,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
-import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
+import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 
 type Gender = "male" | "female";
 
@@ -113,9 +116,10 @@ function AthletePill({ athlete }: { athlete: Athlete }) {
       {...listeners}
       {...attributes}
       className={[
-        "flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2",
+        "flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2",
         "touch-none select-none",
         isDragging ? "opacity-40" : "",
+        athlete.gender === "male" ? "bg-blue-100" : "bg-rode-100",
       ].join(" ")}
     >
       <div className="flex items-center gap-2">
@@ -161,8 +165,10 @@ function SeatCard({
     <div
       ref={droppable.setNodeRef}
       className={[
-        "rounded-lg border bg-white p-3",
-        over ? "border-slate-400 ring-2 ring-slate-200" : "border-slate-200",
+        "rounded-lg border bg-white p-2 sm:p-3 transition",
+        over
+          ? "border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50"
+          : "border-slate-200",
       ].join(" ")}
     >
       <div className="flex items-center justify-between">
@@ -178,9 +184,10 @@ function SeatCard({
             {...draggable.listeners}
             {...draggable.attributes}
             className={[
-              "flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2",
+              "flex items-center gap-2 rounded-md border border-slate-200 p-2",
               "touch-none select-none",
               dragging ? "opacity-40" : "",
+              athlete.gender === "male" ? "bg-blue-100" : "bg-rose-100",
             ].join(" ")}
           >
             <span
@@ -199,7 +206,9 @@ function SeatCard({
             </div>
           </div>
         ) : (
-          <div className="text-sm text-slate-400">Empty</div>
+          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-2 py-2 text-sm text-slate-400">
+            Empty
+          </div>
         )}
       </div>
 
@@ -230,7 +239,7 @@ function StatPill({
         {diffLabel}:{" "}
         <span
           className={
-            ok ? "font-semibold text-emerald-700" : "font-semibold text-rose-700"
+            ok ? "font-semibold text-emerald-700" : "font-semibold text-rose-800"
           }
         >
           {diffValue.toFixed(1)} kg
@@ -245,6 +254,21 @@ export default function SeatingPlanPage() {
     unassigned: MOCK_ATHLETES,
     seats: {},
   }));
+
+  const [activeId, setActiveId] = useState<DragId | null>(null);
+
+  const activeAthlete = useMemo(() => {
+    if (!activeId) return null;
+    const parsed = parseDragId(activeId);
+    if (!parsed) return null;
+
+    if (parsed.kind === "athlete") {
+      return state.unassigned.find((a) => a.id === parsed.athleteId) ?? null;
+    }
+
+  // seat
+  return state.seats[parsed.seatId] ?? null;
+}, [activeId, state.seats, state.unassigned]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -304,11 +328,13 @@ export default function SeatingPlanPage() {
     };
   }, [state.seats, state.unassigned.length]);
 
-  function onDragStart(_e: DragStartEvent) {
-    // no-op for now (no overlay)
+  function onDragStart(e: DragStartEvent) {
+    setActiveId(String(e.active.id) as DragId);
   }
 
   function onDragEnd(e: DragEndEvent) {
+    setActiveId(null);
+
     const active = parseDragId(String(e.active.id));
     const over = e.over ? parseDragId(String(e.over.id)) : null;
 
@@ -355,15 +381,21 @@ export default function SeatingPlanPage() {
     });
   }
 
+  function onDragCancel() {
+    setActiveId(null);
+  }
+
   return (
     <DndContext
-      sensors={sensors}
-      modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-    >
+    sensors={sensors}
+    modifiers={[restrictToWindowEdges]}
+    collisionDetection={closestCorners}
+    onDragStart={onDragStart}
+    onDragEnd={onDragEnd}
+    onDragCancel={onDragCancel}
+  >
       <div className="space-y-4">
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <div className="sticky top-0 z-10 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-lg font-semibold text-slate-900">
@@ -475,7 +507,7 @@ export default function SeatingPlanPage() {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-2">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {state.unassigned.map((a) => (
               <AthletePill key={a.id} athlete={a} />
             ))}
@@ -522,6 +554,31 @@ export default function SeatingPlanPage() {
           </div>
         </div>
       </div>
+
+      {createPortal(
+        <DragOverlay>
+          {activeAthlete ? (
+            <div className="w-[260px] rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${genderDotClass(activeAthlete.gender)}`}
+                  />
+                  <div className="text-sm font-medium text-slate-900">
+                    {activeAthlete.name}
+                  </div>
+                </div>
+                <div className="text-sm text-slate-700">
+                  {activeAthlete.weightKg.toFixed(1)} kg
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>,
+        document.body
+      )}
+
+
     </DndContext>
   );
 }
