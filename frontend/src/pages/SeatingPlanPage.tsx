@@ -112,7 +112,13 @@ function parseDragId(
   return null;
 }
 
-function AthletePill({ athlete }: { athlete: Athlete }) {
+function AthletePill({
+  athlete,
+  onDelete,
+}: {
+  athlete: Athlete;
+  onDelete: (id: string) => void;
+}) {
   const draggableId = dragIdForAthlete(athlete.id);
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: draggableId });
@@ -120,7 +126,7 @@ function AthletePill({ athlete }: { athlete: Athlete }) {
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
-  
+
   return (
     <div
       ref={setNodeRef}
@@ -128,7 +134,7 @@ function AthletePill({ athlete }: { athlete: Athlete }) {
       {...listeners}
       {...attributes}
       className={[
-        "flex items-center justify-between rounded-lg border px-3 py-2",
+        "group flex items-center gap-3 rounded-lg border px-3 py-2",
         "touch-none select-none",
         isDragging ? "opacity-40" : "",
         athlete.gender === "male"
@@ -136,18 +142,54 @@ function AthletePill({ athlete }: { athlete: Athlete }) {
           : "bg-rose-100 border-rose-300",
       ].join(" ")}
     >
-      <div className="flex items-center gap-2">
-        <span
-          className={`h-2.5 w-2.5 rounded-full ${genderDotClass(
-            athlete.gender
-          )}`}
-          title={athlete.gender}
-        />
-        <div className="text-sm font-medium text-slate-900">{athlete.name}</div>
+      <span
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${genderDotClass(
+          athlete.gender
+        )}`}
+        title={athlete.gender}
+      />
+
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium text-slate-900">
+          {athlete.name}
+        </div>
+        <div className="text-xs text-slate-700">
+          {athlete.weightKg.toFixed(0)} kg
+        </div>
       </div>
-      <div className="text-sm text-slate-700">
-        {athlete.weightKg.toFixed(0)} kg
-      </div>
+
+      <button
+        type="button"
+        className={[
+          "shrink-0 rounded-md p-1.5",
+          "opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
+          "text-slate-500 hover:bg-rose-50 hover:text-rose-700",
+          "focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-rose-200",
+        ].join(" ")}
+        onPointerDown={(e) => e.stopPropagation()} // don't start drag
+        onClick={(e) => {
+          e.stopPropagation();
+          if (confirm(`Delete ${athlete.name}?`)) onDelete(athlete.id);
+        }}
+        aria-label={`Delete ${athlete.name}`}
+        title="Delete"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="M6 6l1 16h10l1-16" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -156,10 +198,12 @@ function SeatCard({
   title,
   seatId,
   athlete,
+  onDelete,
 }: {
   title: string;
   seatId: SeatId;
   athlete?: Athlete;
+  onDelete: (id: string) => void;
 }) {
   const droppable = useDroppable({ id: dragIdForSeat(seatId) });
   const draggable = useDraggable({ id: dragIdForSeatItem(seatId), disabled: !athlete });
@@ -197,13 +241,14 @@ function SeatCard({
 
       <div className="mt-2">
         {athlete ? (
+
           <div
             ref={draggable.setNodeRef}
             style={style}
             {...draggable.listeners}
             {...draggable.attributes}
             className={[
-              "inline-flex w-fit max-w-full items-center gap-2 rounded-md border p-2",
+              "group inline-flex w-fit max-w-full items-start gap-2 rounded-md border p-2",
               "touch-none select-none",
               dragging ? "opacity-40" : "",
               athlete.gender === "male"
@@ -212,11 +257,12 @@ function SeatCard({
             ].join(" ")}
           >
             <span
-              className={`h-2.5 w-2.5 rounded-full ${genderDotClass(
+              className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${genderDotClass(
                 athlete.gender
               )}`}
               title={athlete.gender}
             />
+
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-slate-900">
                 {athlete.name}
@@ -225,7 +271,43 @@ function SeatCard({
                 {athlete.weightKg.toFixed(0)} kg
               </div>
             </div>
+
+            <button
+              type="button"
+              className={[
+                "shrink-0 rounded-md p-1.5",
+                "opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
+                "text-slate-500 hover:bg-rose-50 hover:text-rose-700",
+                "focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-rose-200",
+              ].join(" ")}
+              onPointerDown={(e) => e.stopPropagation()} // don't start drag
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm(`Delete ${athlete.name}?`)) onDelete(athlete.id);
+              }}
+              aria-label={`Delete ${athlete.name}`}
+              title="Delete"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M6 6l1 16h10l1-16" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </button>
           </div>
+
+
+          
         ) : (
           <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-2 py-2 text-sm text-slate-400">
             Empty
@@ -275,6 +357,18 @@ export default function SeatingPlanPage() {
     unassigned: MOCK_ATHLETES,
     seats: {},
   }));
+
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  function showToast(type: "success" | "error", text: string) {
+    setToast({ type, text });
+    window.setTimeout(() => setToast(null), 3500);
+  }
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newGender, setNewGender] = useState<Gender>("male");
+  const [newWeight, setNewWeight] = useState("");
 
   const [activeId, setActiveId] = useState<DragId | null>(null);
 
@@ -353,6 +447,101 @@ export default function SeatingPlanPage() {
     };
   }, [state.seats, state.unassigned.length]);
 
+  function normalizeGender(v: string): Gender | null {
+    const s = v.trim().toLowerCase();
+    if (s === "male" || s === "m") return "male";
+    if (s === "female" || s === "f") return "female";
+    return null;
+  }
+
+  async function importCsvFile(file: File) {
+    try {
+      const text = await file.text();
+      const athletes = parseCsv(text);
+
+      setState({
+        unassigned: athletes,
+        seats: {},
+      });
+
+      showToast("success", `Imported ${athletes.length} paddlers (seats cleared).`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to import CSV";
+      showToast("error", msg);
+    }
+  }
+
+  function parseCsv(text: string): Athlete[] {
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    if (lines.length < 2) return [];
+
+    const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const idxName = header.indexOf("name");
+    const idxGender = header.indexOf("gender");
+
+    const idxWeight =
+      header.indexOf("weightkg") !== -1
+        ? header.indexOf("weightkg")
+        : header.indexOf("weight_kg") !== -1
+          ? header.indexOf("weight_kg")
+          : header.indexOf("weight");
+
+    if (idxName === -1 || idxGender === -1 || idxWeight === -1) {
+      throw new Error("CSV headers must include: name, gender, weightKg");
+    }
+
+    return lines.slice(1).map((line, i) => {
+      const cols = line.split(",").map((c) => c.trim());
+      const name = cols[idxName] ?? "";
+      const genderRaw = cols[idxGender] ?? "";
+      const weightRaw = cols[idxWeight] ?? "";
+
+      const gender = normalizeGender(genderRaw);
+      const weightKg = Number(weightRaw);
+
+      if (!name) throw new Error(`Row ${i + 2}: missing name`);
+      if (!gender) throw new Error(`Row ${i + 2}: invalid gender "${genderRaw}"`);
+      if (!Number.isFinite(weightKg)) throw new Error(`Row ${i + 2}: invalid weight "${weightRaw}"`);
+
+      return {
+        id: `csv_${crypto.randomUUID()}`,
+        name,
+        gender,
+        weightKg,
+      };
+    });
+  }
+
+  function addPaddler() {
+    const name = newName.trim();
+    const weightKg = Number(newWeight);
+
+    if (!name) return showToast("error", "Name is required.");
+    if (!Number.isFinite(weightKg) || weightKg <= 0) return showToast("error", "Weight must be a valid number.");
+
+    const athlete: Athlete = {
+      id: `manual_${crypto.randomUUID()}`,
+      name,
+      gender: newGender,
+      weightKg,
+    };
+
+    setState((prev) => ({
+      ...prev,
+      unassigned: [athlete, ...prev.unassigned],
+    }));
+
+    setAddOpen(false);
+    setNewName("");
+    setNewGender("male");
+    setNewWeight("");
+    showToast("success", `Added ${athlete.name}.`);
+  }
+
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id) as DragId);
   }
@@ -412,6 +601,22 @@ export default function SeatingPlanPage() {
     setActiveId(null);
   }
 
+  function deletePaddler(athleteId: string) {
+    setState((prev) => {
+      const nextSeats: Partial<Record<SeatId, Athlete>> = {};
+
+      for (const [seatId, a] of Object.entries(prev.seats) as Array<[SeatId, Athlete]>) {
+        if (a && a.id !== athleteId) nextSeats[seatId] = a;
+      }
+
+      const nextUnassigned = prev.unassigned.filter((a) => a.id !== athleteId);
+
+      return { ...prev, seats: nextSeats, unassigned: nextUnassigned };
+    });
+
+    showToast("success", "Paddler deleted.");
+  }
+
   return (
     <DndContext
     sensors={sensors}
@@ -423,6 +628,20 @@ export default function SeatingPlanPage() {
     onDragCancel={onDragCancel}
   >
       <div className="mx-auto max-w-6xl space-y-4 px-3 sm:px-6 py-4">
+        {toast && (
+          <div className="fixed right-4 top-4 z-50">
+            <div
+              className={[
+                "rounded-lg border px-4 py-3 shadow-lg",
+                toast.type === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : "border-rose-200 bg-rose-50 text-rose-900",
+              ].join(" ")}
+            >
+              <div className="text-sm font-medium">{toast.text}</div>
+            </div>
+          </div>
+        )}
         <div className="sticky top-0 z-10 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -492,6 +711,25 @@ export default function SeatingPlanPage() {
 
             <div className="flex items-center gap-2">
               <button
+                className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+                onClick={() => setAddOpen(true)}
+              >
+                + Add paddler
+              </button>
+              <label className="cursor-pointer rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200">
+                Import CSV
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) importCsvFile(file);
+                    e.currentTarget.value = ""; // allow re-uploading same file
+                  }}
+                />
+              </label>
+              <button
                 className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
                 onClick={() =>
                   setState((prev) => ({
@@ -537,7 +775,7 @@ export default function SeatingPlanPage() {
 
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {state.unassigned.map((a) => (
-              <AthletePill key={a.id} athlete={a} />
+              <AthletePill key={a.id} athlete={a} onDelete={deletePaddler} />
             ))}
           </div>
         </div>
@@ -550,7 +788,7 @@ export default function SeatingPlanPage() {
 
           <div className="mt-3 overflow-x-visible">
             <div className="grid grid-cols-1 gap-3">
-              <SeatCard title="Drummer" seatId="DRUMMER" athlete={state.seats["DRUMMER"]} />
+              <SeatCard title="Drummer" seatId="DRUMMER" athlete={state.seats["DRUMMER"]} onDelete = {deletePaddler} />
 
               {Array.from({ length: 10 }).map((_, idx) => {
                 const row = idx + 1;
@@ -561,7 +799,7 @@ export default function SeatingPlanPage() {
                     className="mx-auto grid w-full max-w-4xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3"
                   >
                     <div className="min-w-0">
-                      <SeatCard title={`Row ${row} (Left)`} seatId={left} athlete={state.seats[left]} />
+                      <SeatCard title={`Row ${row} (Left)`} seatId={left} athlete={state.seats[left]} onDelete={deletePaddler} />
                     </div>
 
                     <div className="flex items-center justify-center">
@@ -571,16 +809,83 @@ export default function SeatingPlanPage() {
                     </div>
 
                     <div className="min-w-0">
-                      <SeatCard title={`Row ${row} (Right)`} seatId={right} athlete={state.seats[right]} />
+                      <SeatCard title={`Row ${row} (Right)`} seatId={right} athlete={state.seats[right]} onDelete={deletePaddler} />
                     </div>
                   </div>
                 );
               })}
 
-              <SeatCard title="Sweep" seatId="SWEEP" athlete={state.seats["SWEEP"]} />
+              <SeatCard title="Sweep" seatId="SWEEP" athlete={state.seats["SWEEP"]} onDelete={deletePaddler} />
             </div>
           </div>
         </div>
+        {addOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl ring-1 ring-slate-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-900">Add paddler</h3>
+                <button
+                  className="text-sm text-slate-500 hover:text-slate-700"
+                  onClick={() => setAddOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-600">Name</label>
+                  <input
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g. Alex"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">Gender</label>
+                    <select
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      value={newGender}
+                      onChange={(e) => setNewGender(e.target.value as Gender)}
+                    >
+                      <option value="male">male</option>
+                      <option value="female">female</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">Weight (kg)</label>
+                    <input
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      value={newWeight}
+                      onChange={(e) => setNewWeight(e.target.value)}
+                      placeholder="e.g. 82.5"
+                      inputMode="decimal"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+                    onClick={() => setAddOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                    onClick={addPaddler}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}      
       </div>
 
       {createPortal(
