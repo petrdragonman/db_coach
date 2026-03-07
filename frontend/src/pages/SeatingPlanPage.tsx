@@ -5,7 +5,7 @@ import {
   DragOverlay,
   PointerSensor,
   TouchSensor,
-  closestCorners,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
@@ -34,7 +34,7 @@ type PlanState = {
   seats: Partial<Record<SeatId, Athlete>>;
 };
 
-type DragId = `athlete:${string}` | `seat:${SeatId}`;
+type DragId = `athlete:${string}` | `seat:${SeatId}` | `seatItem:${SeatId}`;
 
 const MOCK_ATHLETES: Athlete[] = [
   { id: "a1", name: "Petr", gender: "male", weightKg: 82.5 },
@@ -80,23 +80,35 @@ function isLeftSeat(seatId: SeatId): boolean {
 function isRightSeat(seatId: SeatId): boolean {
   return seatId.endsWith("_R");
 }
-
 function dragIdForAthlete(id: string): DragId {
   return `athlete:${id}`;
 }
 function dragIdForSeat(seatId: SeatId): DragId {
   return `seat:${seatId}`;
 }
+function dragIdForSeatItem(seatId: SeatId): DragId {
+  return `seatItem:${seatId}`;
+}
 function parseDragId(
   id: string
 ):
   | { kind: "athlete"; athleteId: string }
   | { kind: "seat"; seatId: SeatId }
+  | { kind: "seatItem"; seatId: SeatId }
   | null {
-  if (id.startsWith("athlete:"))
+  if (id.startsWith("athlete:")) {
     return { kind: "athlete", athleteId: id.slice("athlete:".length) };
-  if (id.startsWith("seat:"))
+  }
+
+  // IMPORTANT: check seatItem BEFORE seat
+  if (id.startsWith("seatItem:")) {
+    return { kind: "seatItem", seatId: id.slice("seatItem:".length) as SeatId };
+  }
+
+  if (id.startsWith("seat:")) {
     return { kind: "seat", seatId: id.slice("seat:".length) as SeatId };
+  }
+
   return null;
 }
 
@@ -116,10 +128,12 @@ function AthletePill({ athlete }: { athlete: Athlete }) {
       {...listeners}
       {...attributes}
       className={[
-        "flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2",
+        "flex items-center justify-between rounded-lg border px-3 py-2",
         "touch-none select-none",
         isDragging ? "opacity-40" : "",
-        athlete.gender === "male" ? "bg-blue-100" : "bg-rode-100",
+        athlete.gender === "male"
+          ? "bg-blue-100 border-blue-300"
+          : "bg-rose-100 border-rose-300",
       ].join(" ")}
     >
       <div className="flex items-center gap-2">
@@ -132,7 +146,7 @@ function AthletePill({ athlete }: { athlete: Athlete }) {
         <div className="text-sm font-medium text-slate-900">{athlete.name}</div>
       </div>
       <div className="text-sm text-slate-700">
-        {athlete.weightKg.toFixed(1)} kg
+        {athlete.weightKg.toFixed(0)} kg
       </div>
     </div>
   );
@@ -148,10 +162,7 @@ function SeatCard({
   athlete?: Athlete;
 }) {
   const droppable = useDroppable({ id: dragIdForSeat(seatId) });
-  const draggable = useDraggable({
-    id: dragIdForSeat(seatId),
-    disabled: !athlete,
-  });
+  const draggable = useDraggable({ id: dragIdForSeatItem(seatId), disabled: !athlete });
 
   const over = droppable.isOver;
   const dragging = draggable.isDragging;
@@ -161,11 +172,19 @@ function SeatCard({
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
 
+  const seatTint =
+    seatId === "DRUMMER" || seatId === "SWEEP"
+      ? "bg-white"
+      : seatId.endsWith("_L")
+        ? "bg-amber-50"
+        : "bg-cyan-50";
+
   return (
     <div
       ref={droppable.setNodeRef}
       className={[
         "rounded-lg border bg-white p-2 sm:p-3 transition",
+        seatTint,
         over
           ? "border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50"
           : "border-slate-200",
@@ -184,10 +203,12 @@ function SeatCard({
             {...draggable.listeners}
             {...draggable.attributes}
             className={[
-              "flex items-center gap-2 rounded-md border border-slate-200 p-2",
+              "inline-flex w-fit max-w-full items-center gap-2 rounded-md border p-2",
               "touch-none select-none",
               dragging ? "opacity-40" : "",
-              athlete.gender === "male" ? "bg-blue-100" : "bg-rose-100",
+              athlete.gender === "male"
+                ? "bg-blue-100 border-blue-300"
+                : "bg-rose-100 border-rose-300",
             ].join(" ")}
           >
             <span
@@ -196,12 +217,12 @@ function SeatCard({
               )}`}
               title={athlete.gender}
             />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-slate-900">
                 {athlete.name}
               </div>
               <div className="text-xs text-slate-600">
-                {athlete.weightKg.toFixed(1)} kg
+                {athlete.weightKg.toFixed(0)} kg
               </div>
             </div>
           </div>
@@ -258,16 +279,20 @@ export default function SeatingPlanPage() {
   const [activeId, setActiveId] = useState<DragId | null>(null);
 
   const activeAthlete = useMemo(() => {
-    if (!activeId) return null;
-    const parsed = parseDragId(activeId);
-    if (!parsed) return null;
+  if (!activeId) return null;
+  const parsed = parseDragId(activeId);
+  if (!parsed) return null;
 
-    if (parsed.kind === "athlete") {
-      return state.unassigned.find((a) => a.id === parsed.athleteId) ?? null;
-    }
+  if (parsed.kind === "athlete") {
+    return state.unassigned.find((a) => a.id === parsed.athleteId) ?? null;
+  }
 
-  // seat
-  return state.seats[parsed.seatId] ?? null;
+  if (parsed.kind === "seatItem") {
+    return state.seats[parsed.seatId] ?? null;
+  }
+
+  // parsed.kind === "seat" (drop zone)
+  return null;
 }, [activeId, state.seats, state.unassigned]);
 
   const sensors = useSensors(
@@ -357,10 +382,12 @@ export default function SeatingPlanPage() {
         if (idx === -1) return prev;
         draggedAthlete = next.unassigned[idx];
         next.unassigned.splice(idx, 1);
-      } else {
+      } else if (active.kind === "seatItem") {
         sourceSeat = active.seatId;
         draggedAthlete = next.seats[sourceSeat];
         if (!draggedAthlete) return prev;
+      } else {
+        return prev; // active.kind === "seat" should never be dragged
       }
 
       if (sourceSeat && sourceSeat === targetSeat) return prev;
@@ -389,12 +416,13 @@ export default function SeatingPlanPage() {
     <DndContext
     sensors={sensors}
     modifiers={[restrictToWindowEdges]}
-    collisionDetection={closestCorners}
+    // collisionDetection={closestCorners}
+    collisionDetection={pointerWithin}
     onDragStart={onDragStart}
     onDragEnd={onDragEnd}
     onDragCancel={onDragCancel}
   >
-      <div className="space-y-4">
+      <div className="mx-auto max-w-6xl space-y-4 px-3 sm:px-6 py-4">
         <div className="sticky top-0 z-10 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -520,37 +548,37 @@ export default function SeatingPlanPage() {
             Drummer → Rows 1–10 (L/R) → Sweep
           </p>
 
-          <div className="mt-3 grid grid-cols-1 gap-3">
-            <SeatCard
-              title="Drummer"
-              seatId="DRUMMER"
-              athlete={state.seats["DRUMMER"]}
-            />
+          <div className="mt-3 overflow-x-visible">
+            <div className="grid grid-cols-1 gap-3">
+              <SeatCard title="Drummer" seatId="DRUMMER" athlete={state.seats["DRUMMER"]} />
 
-            {Array.from({ length: 10 }).map((_, idx) => {
-              const row = idx + 1;
-              const { left, right } = seatIdsForRow(row);
-              return (
-                <div key={row} className="grid grid-cols-2 gap-3">
-                  <SeatCard
-                    title={`Row ${row} (Left)`}
-                    seatId={left}
-                    athlete={state.seats[left]}
-                  />
-                  <SeatCard
-                    title={`Row ${row} (Right)`}
-                    seatId={right}
-                    athlete={state.seats[right]}
-                  />
-                </div>
-              );
-            })}
+              {Array.from({ length: 10 }).map((_, idx) => {
+                const row = idx + 1;
+                const { left, right } = seatIdsForRow(row);
+                return (
+                  <div
+                    key={row}
+                    className="mx-auto grid w-full max-w-4xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3"
+                  >
+                    <div className="min-w-0">
+                      <SeatCard title={`Row ${row} (Left)`} seatId={left} athlete={state.seats[left]} />
+                    </div>
 
-            <SeatCard
-              title="Sweep"
-              seatId="SWEEP"
-              athlete={state.seats["SWEEP"]}
-            />
+                    <div className="flex items-center justify-center">
+                      <div className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700">
+                        {row}
+                      </div>
+                    </div>
+
+                    <div className="min-w-0">
+                      <SeatCard title={`Row ${row} (Right)`} seatId={right} athlete={state.seats[right]} />
+                    </div>
+                  </div>
+                );
+              })}
+
+              <SeatCard title="Sweep" seatId="SWEEP" athlete={state.seats["SWEEP"]} />
+            </div>
           </div>
         </div>
       </div>
@@ -558,18 +586,14 @@ export default function SeatingPlanPage() {
       {createPortal(
         <DragOverlay>
           {activeAthlete ? (
-            <div className="w-[260px] rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${genderDotClass(activeAthlete.gender)}`}
-                  />
-                  <div className="text-sm font-medium text-slate-900">
-                    {activeAthlete.name}
-                  </div>
+            <div className="inline-flex w-fit max-w-[90vw] rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-xl">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${genderDotClass(activeAthlete.gender)}`} />
+                <div className="min-w-0 truncate text-sm font-medium text-slate-900">
+                  {activeAthlete.name}
                 </div>
-                <div className="text-sm text-slate-700">
-                  {activeAthlete.weightKg.toFixed(1)} kg
+                <div className="shrink-0 whitespace-nowrap text-sm text-slate-700">
+                  {activeAthlete.weightKg.toFixed(0)} kg
                 </div>
               </div>
             </div>
